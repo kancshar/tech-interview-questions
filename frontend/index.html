@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interview Question Generator</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            max-width: 900px;
+            width: 100%;
+            padding: 2rem;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 0.5rem;
+            color: #64ffda;
+            font-size: 1.8rem;
+        }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 2rem;
+            font-size: 0.9rem;
+        }
+
+        /* Form Section */
+        #form-section {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid #0f3460;
+        }
+        #form-section.collapsed {
+            padding: 1rem 2rem;
+        }
+        #form-section.collapsed .form-body { display: none; }
+        #form-section.collapsed .form-summary { display: block; }
+        .form-summary {
+            display: none;
+            color: #64ffda;
+            font-size: 0.9rem;
+        }
+        .form-group {
+            margin-bottom: 1.2rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.4rem;
+            color: #aaa;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        input[type="text"], input[type="number"], textarea {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            background: #0a0a1a;
+            color: #e0e0e0;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+            font-family: inherit;
+            resize: vertical;
+        }
+        input:focus, textarea:focus { border-color: #64ffda; }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: #64ffda;
+            color: #1a1a2e;
+        }
+        .btn-primary:hover { background: #4ad4b0; }
+        .btn-primary:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            background: #0f3460;
+            color: #64ffda;
+            margin-left: 0.5rem;
+        }
+        .btn-secondary:hover { background: #1a4a7a; }
+
+        /* Chat Section */
+        #chat-section {
+            display: none;
+            background: #16213e;
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid #0f3460;
+            margin-bottom: 1.5rem;
+        }
+        #chat-messages {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 1rem;
+        }
+        .chat-msg {
+            padding: 0.6rem 1rem;
+            margin-bottom: 0.5rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+        .chat-msg.user {
+            background: #0f3460;
+            text-align: right;
+        }
+        .chat-msg.assistant {
+            background: #1a3a5c;
+            color: #64ffda;
+        }
+        #chat-input-area {
+            display: flex;
+            gap: 0.5rem;
+        }
+        #chat-input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            background: #0a0a1a;
+            color: #e0e0e0;
+            font-size: 0.95rem;
+            outline: none;
+        }
+        #chat-input:focus { border-color: #64ffda; }
+
+        /* Output Section */
+        #output-section {
+            display: none;
+            background: #16213e;
+            border-radius: 12px;
+            padding: 2rem;
+            border: 1px solid #0f3460;
+        }
+        .output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .output-header h2 {
+            color: #64ffda;
+            font-size: 1.2rem;
+        }
+        #markdown-content {
+            background: #0a0a1a;
+            border-radius: 8px;
+            padding: 1.5rem;
+            max-height: 600px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+        #markdown-content h1 { color: #64ffda; font-size: 1.5rem; margin: 1rem 0 0.5rem; }
+        #markdown-content h2 { color: #4ad4b0; font-size: 1.2rem; margin: 1.2rem 0 0.5rem; border-bottom: 1px solid #0f3460; padding-bottom: 0.3rem; }
+        #markdown-content h3 { color: #e0e0e0; font-size: 1rem; margin: 0.8rem 0 0.3rem; }
+        #markdown-content p { margin: 0.4rem 0; }
+        #markdown-content strong { color: #64ffda; }
+        #markdown-content em { color: #888; }
+        #markdown-content table { border-collapse: collapse; margin: 0.5rem 0; width: 100%; }
+        #markdown-content th, #markdown-content td { border: 1px solid #0f3460; padding: 0.4rem 0.8rem; text-align: left; }
+        #markdown-content th { background: #0f3460; }
+        #markdown-content hr { border: none; border-top: 1px solid #0f3460; margin: 1rem 0; }
+
+        /* Loading */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+            color: #64ffda;
+        }
+        .loading.active { display: block; }
+        .spinner {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border: 3px solid #0f3460;
+            border-top: 3px solid #64ffda;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 0.5rem;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Interview Question Generator</h1>
+        <p class="subtitle">Generate tailored interview questions based on tech stack and experience</p>
+
+        <!-- Form Section -->
+        <div id="form-section">
+            <div class="form-summary" id="form-summary"></div>
+            <div class="form-body">
+                <div class="form-group">
+                    <label for="tech-stack">Tech Stack (comma-separated)</label>
+                    <textarea id="tech-stack" rows="3" placeholder="e.g. Python, FastAPI, PostgreSQL, Docker, Redis"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="experience">Years of Experience</label>
+                    <input type="number" id="experience" min="0" max="50" value="5" placeholder="e.g. 5">
+                </div>
+                <div class="form-group">
+                    <label for="projects">Projects (optional)</label>
+                    <textarea id="projects" rows="3" placeholder="e.g. Built a real-time chat app, Designed microservices for e-commerce platform"></textarea>
+                </div>
+                <button class="btn btn-primary" id="generate-btn" onclick="generateQuestions()">
+                    Generate Questions
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading -->
+        <div class="loading" id="loading">
+            <span class="spinner"></span> Generating questions... This may take a moment.
+        </div>
+
+        <!-- Chat Section (for refinements) -->
+        <div id="chat-section">
+            <div id="chat-messages"></div>
+            <div id="chat-input-area">
+                <input type="text" id="chat-input" placeholder="e.g. Add more system design questions, make Python questions harder...">
+                <button class="btn btn-primary" id="chat-btn" onclick="sendRefinement()">Send</button>
+            </div>
+        </div>
+
+        <!-- Output Section -->
+        <div id="output-section">
+            <div class="output-header">
+                <h2>Generated Questions</h2>
+                <button class="btn btn-secondary" onclick="downloadMarkdown()">Download .md</button>
+            </div>
+            <div id="markdown-content"></div>
+        </div>
+    </div>
+
+    <script>
+        let sessionId = null;
+
+        async function generateQuestions() {
+            const techInput = document.getElementById('tech-stack').value.trim();
+            const experience = parseInt(document.getElementById('experience').value);
+            const projects = document.getElementById('projects').value.trim();
+
+            if (!techInput) {
+                alert('Please enter a tech stack');
+                return;
+            }
+
+            const techStack = techInput.split(',').map(t => t.trim()).filter(t => t);
+
+            // Disable button, show loading
+            document.getElementById('generate-btn').disabled = true;
+            document.getElementById('loading').classList.add('active');
+
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tech_stack: techStack,
+                        experience_years: experience,
+                        projects: projects
+                    })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Generation failed');
+                }
+
+                const data = await response.json();
+                sessionId = data.session_id;
+
+                // Show output
+                renderMarkdown(data.markdown);
+
+                // Collapse form, show chat
+                const formSection = document.getElementById('form-section');
+                formSection.classList.add('collapsed');
+                document.getElementById('form-summary').textContent =
+                    `Profile: ${techStack.join(', ')} | ${experience} years`;
+
+                document.getElementById('chat-section').style.display = 'block';
+                document.getElementById('output-section').style.display = 'block';
+
+                addChatMessage('assistant', data.message);
+
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                document.getElementById('generate-btn').disabled = false;
+                document.getElementById('loading').classList.remove('active');
+            }
+        }
+
+        async function sendRefinement() {
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            if (!message || !sessionId) return;
+
+            addChatMessage('user', message);
+            input.value = '';
+            document.getElementById('chat-btn').disabled = true;
+            document.getElementById('loading').classList.add('active');
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: message,
+                        session_id: sessionId
+                    })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Refinement failed');
+                }
+
+                const data = await response.json();
+                renderMarkdown(data.markdown);
+                addChatMessage('assistant', data.message);
+
+            } catch (error) {
+                addChatMessage('assistant', 'Error: ' + error.message);
+            } finally {
+                document.getElementById('chat-btn').disabled = false;
+                document.getElementById('loading').classList.remove('active');
+            }
+        }
+
+        function renderMarkdown(md) {
+            document.getElementById('markdown-content').innerHTML = marked.parse(md);
+        }
+
+        function addChatMessage(role, text) {
+            const msgs = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = `chat-msg ${role}`;
+            div.textContent = text;
+            msgs.appendChild(div);
+            msgs.scrollTop = msgs.scrollHeight;
+        }
+
+        function downloadMarkdown() {
+            if (!sessionId) return;
+            window.open(`/download/${sessionId}`, '_blank');
+        }
+
+        // Enter key to send chat
+        document.getElementById('chat-input').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') sendRefinement();
+        });
+
+        // Enter key on form inputs to generate
+        document.getElementById('tech-stack').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') generateQuestions();
+        });
+    </script>
+</body>
+</html>
