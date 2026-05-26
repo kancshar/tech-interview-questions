@@ -18,16 +18,16 @@ INSTRUCTIONS:
 6. If the user asks to focus on a category that doesn't exist, create it
 
 Return the COMPLETE updated question set as valid JSON with this exact structure:
-{
-    "categories": {
+{{
+    "categories": {{
         "Category Name": [
-            {
+            {{
                 "question": "The interview question?",
                 "answer": "A concise 2-4 sentence answer.",
                 "difficulty": "easy|medium|hard"
-            }
+            }}
         ]
-    }
-}
+    }}
+}}
 
 Only respond with the JSON object. No additional text.

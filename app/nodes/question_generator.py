@@ -26,7 +26,7 @@ def question_generator_node(state: InterviewState) -> dict:
     seniority_level = state["seniority_level"]
     categories = state["categories"]
     projects = state.get("projects", "")
-    print("CATEGIES:******", categories)
+    logger.info("Categories received: %s", categories)
     questions_per_category = QUESTION_COUNTS.get(seniority_level, 4)
 
     # Fill in the prompt template
@@ -40,6 +40,7 @@ def question_generator_node(state: InterviewState) -> dict:
     )
 
     response = call_llm(prompt=prompt, temperature=0.3, max_tokens=6000)
+    logger.info("Question generator raw response (first 500 chars): %s", response[:500])
 
     # Parse LLM response
     try:
@@ -48,9 +49,14 @@ def question_generator_node(state: InterviewState) -> dict:
         if cleaned.startswith("```"):
             cleaned = cleaned.split("\n", 1)[-1]  # remove first line (```json or ```)
             cleaned = cleaned.rsplit("```", 1)[0]  # remove trailing ```
+        # Try to extract JSON object if there's extra text around it
+        if "{" in cleaned:
+            start = cleaned.index("{")
+            end = cleaned.rindex("}") + 1
+            cleaned = cleaned[start:end]
         parsed = json.loads(cleaned.strip())
         questions = parsed.get("categories", {})
-    except json.JSONDecodeError as e:
+    except (json.JSONDecodeError, ValueError) as e:
         logger.warning("Failed to parse question generator response: %s", e)
         logger.warning("Raw response: %s", response[:500])
         questions = {}

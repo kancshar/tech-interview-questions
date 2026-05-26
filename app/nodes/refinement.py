@@ -39,7 +39,7 @@ def refinement_node(state: InterviewState) -> dict:
 
     # Build the prompt
     prompt = PROMPT_TEMPLATE.format(
-        current_questions=json.dumps({"categories": questions}, indent=2),
+        current_questions=json.dumps({"current_questions": questions}, indent=2),
         tech_stack=", ".join(tech_stack),
         seniority_level=seniority_level,
         experience_years=experience_years,

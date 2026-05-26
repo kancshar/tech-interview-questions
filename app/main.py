@@ -47,6 +47,19 @@ class ChatRequest(BaseModel):
     session_id: str
 
 
+class ApproveRequest(BaseModel):
+    session_id: str
+    categories: list[str]
+    seniority_level: str
+
+
+class ProfileResponse(BaseModel):
+    session_id: str
+    seniority_level: str
+    categories: list[str]
+    message: str
+
+
 class ChatResponse(BaseModel):
     session_id: str
     markdown: str
@@ -55,9 +68,12 @@ class ChatResponse(BaseModel):
 
 # --- Endpoints ---
 
-@fastapi_app.post("/generate", response_model=ChatResponse)
+@fastapi_app.post("/generate", response_model=ProfileResponse)
 async def generate_questions(request: GenerateRequest):
-    """Initial question generation from structured form input."""
+    """
+    Step 1: Analyze profile and return categories for human approval.
+    The graph pauses before question_generator (HITL interrupt).
+    """
     session_id = request.session_id or str(uuid.uuid4())
 
     # Build initial state
@@ -79,12 +95,65 @@ async def generate_questions(request: GenerateRequest):
         "action": "generate",
     }
 
-    config = {"configurable": {"thread_id": session_id}}
+    config = {
+        "configurable": {"thread_id": session_id},
+        "metadata": {
+            "session_id": session_id,
+            "action": "generate",
+            "tech_stack": ", ".join(request.tech_stack),
+            "experience_years": request.experience_years,
+        },
+    }
 
     try:
+        # This will pause after profile_analyzer (before question_generator)
         result = langgraph_app.invoke(initial_state, config)
     except Exception as e:
-        logger.exception("Graph execution failed")
+        logger.exception("Profile analysis failed")
+        raise HTTPException(status_code=500, detail=f"Profile analysis failed: {str(e)}")
+
+    # Get the current state from the checkpoint (paused state)
+    state = langgraph_app.get_state(config)
+    seniority_level = state.values.get("seniority_level", "")
+    categories = state.values.get("categories", [])
+
+    return ProfileResponse(
+        session_id=session_id,
+        seniority_level=seniority_level,
+        categories=categories,
+        message=f"Profile analyzed as {seniority_level.title()} level. Review the categories below and approve or modify them.",
+    )
+
+
+@fastapi_app.post("/approve", response_model=ChatResponse)
+async def approve_and_generate(request: ApproveRequest):
+    """
+    Step 2: User approves/modifies categories, then graph resumes to generate questions.
+    """
+    session_id = request.session_id
+
+    config = {
+        "configurable": {"thread_id": session_id},
+        "metadata": {
+            "session_id": session_id,
+            "action": "approve",
+        },
+    }
+
+    # Update state with user's approved/modified categories before resuming
+    langgraph_app.update_state(
+        config,
+        {
+            "categories": request.categories,
+            "seniority_level": request.seniority_level,
+        },
+    )
+
+    try:
+        # Resume the graph — it continues from question_generator → formatter → END
+        result = langgraph_app.invoke(None, config)
+    except Exception as e:
+        logger.exception("Question generation failed")
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
 
     markdown = result.get("markdown_output", "")
@@ -107,7 +176,14 @@ async def chat_refine(request: ChatRequest):
         "action": "refine",
     }
 
-    config = {"configurable": {"thread_id": session_id}}
+    config = {
+        "configurable": {"thread_id": session_id},
+        "metadata": {
+            "session_id": session_id,
+            "action": "refine",
+            "user_message": request.message[:100],
+        },
+    }
 
     try:
         result = langgraph_app.invoke(state_update, config)
@@ -148,6 +224,35 @@ async def serve_frontend():
         return HTMLResponse(content=f.read())
 
 
+@fastapi_app.get("/graph", response_class=HTMLResponse)
+async def view_graph():
+    """Render the LangGraph state graph as a Mermaid diagram."""
+    mermaid_code = langgraph_app.get_graph().draw_mermaid()
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Interview Generator - Graph</title>
+        <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+        <style>
+            body {{ background: #1a1a2e; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }}
+            .container {{ background: #16213e; padding: 2rem; border-radius: 12px; border: 1px solid #0f3460; }}
+            h2 {{ color: #64ffda; text-align: center; margin-bottom: 1rem; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h2>LangGraph Flow</h2>
+            <pre class="mermaid">{mermaid_code}</pre>
+        </div>
+        <script>mermaid.initialize({{ startOnLoad: true, theme: 'dark' }});</script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(fastapi_app, host="127.0.0.1", port=8080)
+    port = int(os.getenv("PORT", 8080))
+    uvicorn.run(fastapi_app, host="0.0.0.0", port=port)

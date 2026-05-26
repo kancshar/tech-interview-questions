@@ -45,9 +45,19 @@ def profile_analyzer_node(state: InterviewState) -> dict:
 
     # Parse LLM response
     try:
-        analysis = json.loads(response.strip())
+        cleaned = response.strip()
+        # Strip markdown code fences if present
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[-1]
+            cleaned = cleaned.rsplit("```", 1)[0]
+        # Extract JSON object if there's extra text
+        if "{" in cleaned:
+            start = cleaned.index("{")
+            end = cleaned.rindex("}") + 1
+            cleaned = cleaned[start:end]
+        analysis = json.loads(cleaned.strip())
         categories = analysis.get("categories", [])
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, ValueError):
         logger.warning("Failed to parse LLM response as JSON, using default categories")
         categories = _default_categories(tech_stack, seniority_level)
 

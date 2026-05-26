@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interview Question Generator</title>
+    <title>Interview Questions Generator</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -17,7 +17,7 @@
             align-items: center;
         }
         .container {
-            max-width: 900px;
+            max-width: 1200px;
             width: 100%;
             padding: 2rem;
         }
@@ -165,6 +165,47 @@
             color: #64ffda;
             font-size: 1.2rem;
         }
+        /* Tabs */
+        .tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #0f3460;
+            padding-bottom: 0.75rem;
+        }
+        .tab-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid #0f3460;
+            border-radius: 8px 8px 0 0;
+            background: #0a0a1a;
+            color: #aaa;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .tab-btn:hover { color: #64ffda; border-color: #64ffda; }
+        .tab-btn.active {
+            background: #0f3460;
+            color: #64ffda;
+            border-color: #64ffda;
+        }
+        .tab-content {
+            display: none;
+            background: #0a0a1a;
+            border-radius: 8px;
+            padding: 1.5rem;
+            max-height: 600px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+        .tab-content.active { display: block; }
+        .tab-content h3 { color: #e0e0e0; font-size: 1rem; margin: 0.8rem 0 0.3rem; }
+        .tab-content p { margin: 0.4rem 0; }
+        .tab-content strong { color: #64ffda; }
+        .tab-content em { color: #888; }
+        .tab-content hr { border: none; border-top: 1px solid #0f3460; margin: 1rem 0; }
         #markdown-content {
             background: #0a0a1a;
             border-radius: 8px;
@@ -208,7 +249,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>Interview Question Generator</h1>
+        <h1>Interview Questions Generator</h1>
         <p class="subtitle">Generate tailored interview questions based on tech stack and experience</p>
 
         <!-- Form Section -->
@@ -238,6 +279,35 @@
             <span class="spinner"></span> Generating questions... This may take a moment.
         </div>
 
+        <!-- Approval Section (Human-in-the-Loop) -->
+        <div id="approval-section" style="display:none;">
+            <div style="background:#16213e; border-radius:12px; padding:2rem; border:1px solid #0f3460; margin-bottom:1.5rem;">
+                <h2 style="color:#64ffda; margin-bottom:1rem;">Review Profile Analysis</h2>
+                <p style="color:#aaa; margin-bottom:1rem;" id="approval-message"></p>
+                <div class="form-group">
+                    <label>Seniority Level</label>
+                    <select id="seniority-select" style="width:100%; padding:0.75rem 1rem; border:1px solid #0f3460; border-radius:8px; background:#0a0a1a; color:#e0e0e0; font-size:1rem;">
+                        <option value="junior">Junior</option>
+                        <option value="mid">Mid</option>
+                        <option value="senior">Senior</option>
+                        <option value="staff">Staff</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Categories (edit, add, or remove as needed)</label>
+                    <div id="category-chips" style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.75rem;"></div>
+                    <div style="display:flex; gap:0.5rem;">
+                        <input type="text" id="new-category-input" placeholder="Add a new category..." style="flex:1; padding:0.6rem 1rem; border:1px solid #0f3460; border-radius:8px; background:#0a0a1a; color:#e0e0e0; font-size:0.9rem;">
+                        <button class="btn btn-secondary" onclick="addCategory()">+ Add</button>
+                    </div>
+                </div>
+                <div style="display:flex; gap:0.75rem; margin-top:1.5rem;">
+                    <button class="btn btn-primary" id="approve-btn" onclick="approveCategories()">✓ Approve & Generate</button>
+                    <button class="btn btn-secondary" onclick="goBackFromApproval()">← Back</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Chat Section (for refinements) -->
         <div id="chat-section">
             <div id="chat-messages"></div>
@@ -251,14 +321,20 @@
         <div id="output-section">
             <div class="output-header">
                 <h2>Generated Questions</h2>
-                <button class="btn btn-secondary" onclick="downloadMarkdown()">Download .md</button>
+                <div>
+                    <button class="btn btn-secondary" onclick="goBack()">← Back</button>
+                    <button class="btn btn-secondary" onclick="downloadMarkdown()">Download .md</button>
+                </div>
             </div>
-            <div id="markdown-content"></div>
+            <div class="tabs" id="category-tabs"></div>
+            <div id="tab-panels"></div>
+            <div id="markdown-content" style="display:none;"></div>
         </div>
     </div>
 
     <script>
         let sessionId = null;
+        let currentCategories = [];
 
         async function generateQuestions() {
             const techInput = document.getElementById('tech-stack').value.trim();
@@ -289,25 +365,15 @@
 
                 if (!response.ok) {
                     const err = await response.json();
-                    throw new Error(err.detail || 'Generation failed');
+                    throw new Error(err.detail || 'Profile analysis failed');
                 }
 
                 const data = await response.json();
                 sessionId = data.session_id;
+                currentCategories = data.categories;
 
-                // Show output
-                renderMarkdown(data.markdown);
-
-                // Collapse form, show chat
-                const formSection = document.getElementById('form-section');
-                formSection.classList.add('collapsed');
-                document.getElementById('form-summary').textContent =
-                    `Profile: ${techStack.join(', ')} | ${experience} years`;
-
-                document.getElementById('chat-section').style.display = 'block';
-                document.getElementById('output-section').style.display = 'block';
-
-                addChatMessage('assistant', data.message);
+                // Show approval section
+                showApprovalStep(data);
 
             } catch (error) {
                 alert('Error: ' + error.message);
@@ -315,6 +381,100 @@
                 document.getElementById('generate-btn').disabled = false;
                 document.getElementById('loading').classList.remove('active');
             }
+        }
+
+        function showApprovalStep(data) {
+            // Collapse form
+            const formSection = document.getElementById('form-section');
+            formSection.classList.add('collapsed');
+            document.getElementById('form-summary').textContent =
+                `Profile: ${document.getElementById('tech-stack').value.trim()} | ${document.getElementById('experience').value} years`;
+
+            // Populate approval section
+            document.getElementById('approval-message').textContent = data.message;
+            document.getElementById('seniority-select').value = data.seniority_level;
+            renderCategoryChips(data.categories);
+
+            document.getElementById('approval-section').style.display = 'block';
+        }
+
+        function renderCategoryChips(categories) {
+            currentCategories = [...categories];
+            const container = document.getElementById('category-chips');
+            container.innerHTML = '';
+            categories.forEach((cat, i) => {
+                const chip = document.createElement('span');
+                chip.style.cssText = 'display:inline-flex; align-items:center; gap:0.4rem; padding:0.4rem 0.8rem; background:#0f3460; border:1px solid #64ffda; border-radius:20px; color:#64ffda; font-size:0.85rem;';
+                chip.innerHTML = `${cat} <span onclick="removeCategory(${i})" style="cursor:pointer; color:#ff6b6b; font-weight:bold;">×</span>`;
+                container.appendChild(chip);
+            });
+        }
+
+        function removeCategory(index) {
+            currentCategories.splice(index, 1);
+            renderCategoryChips(currentCategories);
+        }
+
+        function addCategory() {
+            const input = document.getElementById('new-category-input');
+            const val = input.value.trim();
+            if (val && !currentCategories.includes(val)) {
+                currentCategories.push(val);
+                renderCategoryChips(currentCategories);
+                input.value = '';
+            }
+        }
+
+        async function approveCategories() {
+            if (currentCategories.length === 0) {
+                alert('Please add at least one category');
+                return;
+            }
+
+            const seniority = document.getElementById('seniority-select').value;
+
+            document.getElementById('approve-btn').disabled = true;
+            document.getElementById('loading').classList.add('active');
+
+            try {
+                const response = await fetch('/approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        categories: currentCategories,
+                        seniority_level: seniority
+                    })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Generation failed');
+                }
+
+                const data = await response.json();
+
+                // Hide approval, show output
+                document.getElementById('approval-section').style.display = 'none';
+                renderMarkdown(data.markdown);
+                document.getElementById('chat-section').style.display = 'block';
+                document.getElementById('output-section').style.display = 'block';
+                addChatMessage('assistant', data.message);
+
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                document.getElementById('approve-btn').disabled = false;
+                document.getElementById('loading').classList.remove('active');
+            }
+        }
+
+        function goBackFromApproval() {
+            document.getElementById('approval-section').style.display = 'none';
+            const formSection = document.getElementById('form-section');
+            formSection.classList.remove('collapsed');
+            sessionId = null;
+            currentCategories = [];
         }
 
         async function sendRefinement() {
@@ -355,7 +515,67 @@
         }
 
         function renderMarkdown(md) {
+            // Store raw markdown for download
             document.getElementById('markdown-content').innerHTML = marked.parse(md);
+
+            // Parse categories from markdown (split by ## headings)
+            const tabs = document.getElementById('category-tabs');
+            const panels = document.getElementById('tab-panels');
+            tabs.innerHTML = '';
+            panels.innerHTML = '';
+
+            // Split into sections by ## (category headings)
+            const sections = md.split(/^## /m).filter(s => s.trim());
+
+            // First section is usually the profile/summary (before categories)
+            const categories = [];
+            let profileSection = '';
+
+            sections.forEach(section => {
+                const lines = section.split('\n');
+                const title = lines[0].trim();
+
+                // Skip profile/overview sections — they contain headers or summary info, not questions
+                if (title === 'Candidate Profile' || title.includes('Interview Questions') || title.startsWith('#')) {
+                    profileSection += '## ' + section;
+                } else {
+                    categories.push({ title, content: '## ' + section });
+                }
+            });
+
+            if (categories.length === 0) {
+                // Fallback: no categories parsed, show raw markdown
+                document.getElementById('tab-panels').innerHTML = `<div class="tab-content active">${marked.parse(md)}</div>`;
+                return;
+            }
+
+            // Add "Overview" tab if there's profile info
+            if (profileSection) {
+                categories.unshift({ title: 'Overview', content: profileSection });
+            }
+
+            // Create tabs and panels
+            categories.forEach((cat, i) => {
+                // Tab button
+                const btn = document.createElement('button');
+                btn.className = `tab-btn${i === 0 ? ' active' : ''}`;
+                btn.textContent = cat.title;
+                btn.onclick = () => switchTab(i);
+                tabs.appendChild(btn);
+
+                // Panel
+                const panel = document.createElement('div');
+                panel.className = `tab-content${i === 0 ? ' active' : ''}`;
+                panel.innerHTML = marked.parse(cat.content);
+                panels.appendChild(panel);
+            });
+        }
+
+        function switchTab(index) {
+            const btns = document.querySelectorAll('.tab-btn');
+            const panels = document.querySelectorAll('.tab-content');
+            btns.forEach((btn, i) => btn.classList.toggle('active', i === index));
+            panels.forEach((panel, i) => panel.classList.toggle('active', i === index));
         }
 
         function addChatMessage(role, text) {
@@ -370,6 +590,20 @@
         function downloadMarkdown() {
             if (!sessionId) return;
             window.open(`/download/${sessionId}`, '_blank');
+        }
+
+        function goBack() {
+            document.getElementById('output-section').style.display = 'none';
+            document.getElementById('chat-section').style.display = 'none';
+            document.getElementById('approval-section').style.display = 'none';
+            const formSection = document.getElementById('form-section');
+            formSection.classList.remove('collapsed');
+            document.getElementById('markdown-content').innerHTML = '';
+            document.getElementById('category-tabs').innerHTML = '';
+            document.getElementById('tab-panels').innerHTML = '';
+            document.getElementById('chat-messages').innerHTML = '';
+            sessionId = null;
+            currentCategories = [];
         }
 
         // Enter key to send chat

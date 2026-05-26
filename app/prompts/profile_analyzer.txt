@@ -12,10 +12,10 @@ Return your analysis as valid JSON with this exact structure:
 
 Guidelines for categories:
 - Always include "Core Fundamentals" for the primary language/framework
-- Include a category for each primary technology (e.g., "FastAPI", "React", "PostgreSQL")
+- Include a dedicated category for EACH technology in the tech stack (e.g., "FastAPI", "React", "PostgreSQL", "RAG", "LangChain", "Docker", etc.) - do NOT skip or merge technologies
 - For mid+ seniority, include "System Design & Architecture"
 - For senior+, include "Leadership & Best Practices"
 - Include "Problem Solving & Algorithms" for all levels
-- Keep categories between 4-7 total
+- Treat frameworks, tools, patterns, and methodologies (like RAG, microservices, CI/CD) as their own categories
 
 Only respond with the JSON object. No additional text and ensure the JSON response is in the above given format ONLY.

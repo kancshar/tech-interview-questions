@@ -2,10 +2,11 @@
 LangGraph StateGraph definition for the Interview Question Generator.
 
 Flow:
-  - Initial generation: profile_analyzer → question_generator → formatter → END
+  - Initial generation: profile_analyzer → [HUMAN APPROVAL] → question_generator → formatter → END
   - Refinement: refinement → formatter → END
   
 Routing is determined by the `action` field in state.
+Human-in-the-loop: Graph pauses before question_generator for user approval of categories.
 """
 
 import logging
@@ -57,5 +58,9 @@ def build_graph() -> StateGraph:
 
 
 # Compiled app with memory checkpointer for multi-turn conversations
+# interrupt_before pauses the graph before question_generator for human approval
 memory = MemorySaver()
-app = build_graph().compile(checkpointer=memory)
+app = build_graph().compile(
+    checkpointer=memory,
+    interrupt_before=["question_generator"],
+)

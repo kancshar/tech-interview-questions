@@ -1,24 +1,31 @@
 """
-LLM wrapper that provides a unified interface around PepGenXService
+LLM wrapper using Groq via LangChain (OpenAI-compatible)
 for use by LangGraph agent nodes.
 """
 
+import os
 import logging
 from typing import Optional
-from app.pepgenx_service import PepGenXService
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
 
 logger = logging.getLogger(__name__)
 
-# Singleton instance
-_service: Optional[PepGenXService] = None
+_llm: Optional[ChatOpenAI] = None
 
 
-def get_llm_service() -> PepGenXService:
-    """Get or create the PepGenX service singleton."""
-    global _service
-    if _service is None:
-        _service = PepGenXService()
-    return _service
+def get_llm_service() -> ChatOpenAI:
+    """Get or create the Groq LLM singleton."""
+    global _llm
+    if _llm is None:
+        _llm = ChatOpenAI(
+            model=os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+            openai_api_key=os.getenv("GROQ_API_KEY"),
+            openai_api_base="https://api.groq.com/openai/v1",
+            temperature=0.0,
+            max_tokens=4000,
+        )
+    return _llm
 
 
 def call_llm(
@@ -28,27 +35,15 @@ def call_llm(
     max_tokens: int = 4000,
 ) -> str:
     """
-    Call the PepGenX LLM with a user prompt and optional system prompt.
-
-    Args:
-        prompt: The user message/prompt
-        system_prompt: Optional system instructions for the LLM
-        temperature: Sampling temperature (0.0 = deterministic)
-        max_tokens: Maximum tokens in response
-
-    Returns:
-        The LLM's text response
-
-    Raises:
-        RuntimeError: If the LLM call fails
+    Call Groq LLM with a user prompt and optional system prompt.
     """
-    service = get_llm_service()
-    logger.info("Calling LLM: prompt_length=%d, system_prompt=%s", len(prompt), bool(system_prompt))
+    llm = get_llm_service()
+    logger.info("Calling Groq: prompt_length=%d, system_prompt=%s", len(prompt), bool(system_prompt))
 
-    response = service.generate_response(
-        prompt=prompt,
-        system_prompt=system_prompt,
-        temperature=temperature,
-        max_tokens=max_tokens,
-    )
-    return response
+    messages = []
+    if system_prompt:
+        messages.append(SystemMessage(content=system_prompt))
+    messages.append(HumanMessage(content=prompt))
+
+    response = llm.invoke(messages, temperature=temperature, max_tokens=max_tokens)
+    return response.content
