@@ -7,16 +7,19 @@ CANDIDATE PROFILE:
 - Projects: {projects}
 
 INSTRUCTIONS:
-1. Generate {questions_per_category} questions per category
-2. Each question must have a concise answer (2-4 sentences max)
-3. Difficulty distribution based on seniority:
+1. You MUST generate questions for EVERY category listed above. Do NOT skip any category.
+2. Generate exactly {questions_per_category} questions per category
+3. Each question must have a concise answer (2-4 sentences max)
+4. Difficulty distribution based on seniority:
    - Junior: 60% easy, 30% medium, 10% hard
    - Mid: 30% easy, 50% medium, 20% hard
    - Senior: 10% easy, 40% medium, 50% hard
    - Staff: 0% easy, 30% medium, 70% hard
-4. Questions should be practical and relevant to real-world scenarios
-5. Avoid trivia questions; focus on understanding and application
-6. Also, add some theoretical questions to assess fundamental knowledge
+5. Questions should be practical and relevant to real-world scenarios
+6. Avoid trivia questions; focus on understanding and application
+7. Also, add some theoretical questions to assess fundamental knowledge
+
+CRITICAL: The JSON response MUST contain ALL of these categories as keys: {categories}. Missing any category is a failure.
 
 Return your response as valid JSON with this exact structure:
 {{

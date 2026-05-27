@@ -81,4 +81,43 @@ def question_generator_node(state: InterviewState) -> dict:
         sum(len(qs) for qs in validated_questions.values()),
     )
 
+    # Check for missing categories and retry for those
+    missing_categories = [c for c in categories if c not in validated_questions]
+    if missing_categories and len(missing_categories) < len(categories):
+        logger.warning("Missing categories: %s. Retrying for those.", missing_categories)
+        retry_prompt = PROMPT_TEMPLATE.format(
+            tech_stack=", ".join(tech_stack),
+            seniority_level=seniority_level,
+            experience_years=experience_years,
+            categories=", ".join(missing_categories),
+            questions_per_category=questions_per_category,
+            projects=projects if projects else "Not specified",
+        )
+        retry_response = call_llm(prompt=retry_prompt, temperature=0.3, max_tokens=4000)
+        try:
+            cleaned = retry_response.strip()
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("\n", 1)[-1]
+                cleaned = cleaned.rsplit("```", 1)[0]
+            if "{" in cleaned:
+                start = cleaned.index("{")
+                end = cleaned.rindex("}") + 1
+                cleaned = cleaned[start:end]
+            retry_parsed = json.loads(cleaned.strip())
+            retry_questions = retry_parsed.get("categories", {})
+            for cat, q_list in retry_questions.items():
+                if isinstance(q_list, list):
+                    validated_questions[cat] = [
+                        {
+                            "question": q.get("question", ""),
+                            "answer": q.get("answer", ""),
+                            "difficulty": q.get("difficulty", "medium"),
+                        }
+                        for q in q_list
+                        if isinstance(q, dict) and q.get("question")
+                    ]
+            logger.info("Retry filled %d missing categories", len(retry_questions))
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning("Retry parse failed: %s", e)
+
     return {"questions": validated_questions}

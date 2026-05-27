@@ -39,7 +39,7 @@ def refinement_node(state: InterviewState) -> dict:
 
     # Build the prompt
     prompt = PROMPT_TEMPLATE.format(
-        current_questions=json.dumps({"current_questions": questions}, indent=2),
+        current_questions=json.dumps({"categories": questions}, indent=2),
         tech_stack=", ".join(tech_stack),
         seniority_level=seniority_level,
         experience_years=experience_years,
@@ -50,9 +50,17 @@ def refinement_node(state: InterviewState) -> dict:
 
     # Parse response
     try:
-        parsed = json.loads(response.strip())
+        cleaned = response.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[-1]
+            cleaned = cleaned.rsplit("```", 1)[0]
+        if "{" in cleaned:
+            start = cleaned.index("{")
+            end = cleaned.rindex("}") + 1
+            cleaned = cleaned[start:end]
+        parsed = json.loads(cleaned.strip())
         updated_questions = parsed.get("categories", {})
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, ValueError):
         logger.warning("Failed to parse refinement response, keeping existing questions")
         return {}
 
